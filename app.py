@@ -5,7 +5,8 @@ import uvicorn
 import cv2
 from PIL import Image
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse,FileResponse
+from fastapi.responses import JSONResponse,FileResponse,HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from sentence_transformers import SentenceTransformer, util    
 
 #---CONFIGURATION---
@@ -75,6 +76,13 @@ def extract_frames(video_path,desired_frames_per_media:int = DEFAULT_FRAMES_TO_E
 # =========================================================================
 
 app = FastAPI(title="Multimedia Semantic Search API")
+app.mount("/static", StaticFiles(directory="static"),name="static")
+@app.get("/",response_class=HTMLResponse)
+async def read_root():
+    """Serve the main HTML page."""
+    with open("static/index.html", "r") as f:
+        return f.read()
+    
 model = None
 def index_all_media(media_folder:str,video_frames_to_extract:int = DEFAULT_FRAMES_TO_EXTRACT):
    
