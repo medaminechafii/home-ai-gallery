@@ -1,0 +1,60 @@
+#project files to ignore
+__pycache__
+.DS_Store
+venv
+media
+env
+indexed_filenames.json
+indexed_embeddings.pt
+#general python ignores
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.log
+*.db
+*.sqlite
+.idea
+.vscode
+#macos specific ignores
+.AppleDouble
+.LSOverride
+# Thumbnails
+._*
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+# Ignore streamlit specific files
+.streamlit/
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+# Ignore test output files
+test_output/
+# Ignore coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+# Ignore mypy cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+# Ignore profiling data
+.prof
+

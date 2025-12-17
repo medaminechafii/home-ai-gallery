@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+# For Apple Silicon (M1/M2/M3) you can use a different torch install,
+# but for simplicity and stability on all Macs:
+torch
+opencv-python
+Pillow
+sentence-transformers
+#interface to run the app
+streamlit
