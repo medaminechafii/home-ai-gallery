@@ -5,8 +5,11 @@ import uvicorn
 import cv2
 from PIL import Image
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse,FileResponse
-from sentence_transformers import SentenceTransformer, util    
+from fastapi.responses import JSONResponse,FileResponse,FileResponse
+from sentence_transformers import SentenceTransformer, util  
+from fastapi.staticfiles import StaticFiles 
+from pydantic import BaseModel
+
 
 #---CONFIGURATION---
 MEDIA_FOLDER = "./media"
@@ -22,6 +25,11 @@ DEFAULT_FRAMES_TO_EXTRACT = 10
 
 INDEX_FILE_EMBEDDINGS = "indexed_embeddings.pt"
 INDEX_FILE_FILENAMES = "indexed_filenames.json"
+
+class searchRequest(BaseModel):
+    query: str
+    top_k: int = 50
+    score_threshold: float = 0.2
 
 #---END CONFIGURATION---
 
@@ -75,6 +83,10 @@ def extract_frames(video_path,desired_frames_per_media:int = DEFAULT_FRAMES_TO_E
 # =========================================================================
 
 app = FastAPI(title="Multimedia Semantic Search API")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+@app.get("/")
+async def read_root():
+    return FileResponse("static/index.html")
 model = None
 def index_all_media(media_folder:str,video_frames_to_extract:int = DEFAULT_FRAMES_TO_EXTRACT):
    
@@ -169,7 +181,7 @@ async def startup_event():
 # 3. SEARCH API ENDPOINTS
 # =========================================================================
 
-def search_media(query:str,top_k:int = 50,score_threshold:float = 0.2):
+def search_media(query:str,top_k:int = 50,score_threshold:float = 0.21):
   """Searches the indexed media files based on the text query."""
   global indexed_embeddings,indexed_filenames,model
 
@@ -190,7 +202,7 @@ def search_media(query:str,top_k:int = 50,score_threshold:float = 0.2):
     if filename not in final_results or score > final_results[filename]["score"]:
      final_results[filename] = {
          "score":score,
-         "filename":MEDIA_FOLDER +"/"+ filename,
+         "filename":filename,
          "source": "Video Frame" if filename.lower().endswith(tuple(VIDEO_EXTENTIONS)) else "Image"
      }
 
@@ -198,10 +210,10 @@ def search_media(query:str,top_k:int = 50,score_threshold:float = 0.2):
   return {"query": query, "total_matches": len(sorted_results), "results": sorted_results[:top_k]}
     
 @app.post("/search")
-def api_search(query: str, top_k: int = 50,score_threshold: float = 0.2):
+def api_search(request: searchRequest):
     """API endpoint to search media files based on a text query."""
     try:
-        results = search_media(query, top_k)
+        results = search_media(request.query, request.top_k, request.score_threshold)
         return JSONResponse(content=results)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
