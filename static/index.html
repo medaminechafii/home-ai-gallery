@@ -7,11 +7,23 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <!-- Your search interface here -->
-     <h1>What are you searching for today?</h1>
-    <input type="text" id="searchQuery" placeholder="Enter your search query...">
-    <button id="searchButton">Search</button>
-    <div id="results"></div>
+    <header class="header">
+        <h1>What are you searching for today?</h1>
+    </header>
+    
+    <section class="search-section">
+        <input type="text" id="searchInput" placeholder="Search by keyword (AI-powered)..." />
+        <button id="searchBtn">Search</button>
+    </section>
+    
+    <!-- Removed placeholder cards, will be populated dynamically -->
+    <main class="results" id="resultsContainer">
+        <!-- Results will be dynamically inserted here -->
+    </main>
+    
     <script src="/static/script.js"></script>
 </body>
 </html>
+
+
+

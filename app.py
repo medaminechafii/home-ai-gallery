@@ -7,7 +7,8 @@ from PIL import Image
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse,FileResponse,HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from sentence_transformers import SentenceTransformer, util    
+from sentence_transformers import SentenceTransformer, util
+from pydantic import Basemodel
 
 #---CONFIGURATION---
 MEDIA_FOLDER = "./media"
@@ -19,10 +20,15 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 IMAGE_EXTENTIONS = [".jpg", ".jpeg", ".png", ".bmp", ".tiff"]
 VIDEO_EXTENTIONS = [".mp4", ".avi", ".mov", ".mkv"]
-DEFAULT_FRAMES_TO_EXTRACT = 10
+DEFAULT_FRAMES_TO_EXTRACT = 50
 
 INDEX_FILE_EMBEDDINGS = "indexed_embeddings.pt"
 INDEX_FILE_FILENAMES = "indexed_filenames.json"
+
+class searchRequest(BaseModel):
+    query: str
+    top_k: int = 50
+    score_threshold: float = 0.2
 
 #---END CONFIGURATION---
 
@@ -177,7 +183,7 @@ async def startup_event():
 # 3. SEARCH API ENDPOINTS
 # =========================================================================
 
-def search_media(query:str,top_k:int = 50,score_threshold:float = 0.2):
+def search_media(query:str,top_k:int = 50,score_threshold:float = 0.21):
   """Searches the indexed media files based on the text query."""
   global indexed_embeddings,indexed_filenames,model
 
@@ -198,7 +204,7 @@ def search_media(query:str,top_k:int = 50,score_threshold:float = 0.2):
     if filename not in final_results or score > final_results[filename]["score"]:
      final_results[filename] = {
          "score":score,
-         "filename":MEDIA_FOLDER +"/"+ filename,
+         "filename":filename,
          "source": "Video Frame" if filename.lower().endswith(tuple(VIDEO_EXTENTIONS)) else "Image"
      }
 
@@ -206,10 +212,10 @@ def search_media(query:str,top_k:int = 50,score_threshold:float = 0.2):
   return {"query": query, "total_matches": len(sorted_results), "results": sorted_results[:top_k]}
     
 @app.post("/search")
-def api_search(query: str, top_k: int = 50,score_threshold: float = 0.2):
+def api_search(request: searchRequest):
     """API endpoint to search media files based on a text query."""
     try:
-        results = search_media(query, top_k)
+        results = search_media(request.query, request.top_k, request.score_threshold)
         return JSONResponse(content=results)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
