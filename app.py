@@ -21,7 +21,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 IMAGE_EXTENTIONS = [".jpg", ".jpeg", ".png", ".bmp", ".tiff"]
 VIDEO_EXTENTIONS = [".mp4", ".avi", ".mov", ".mkv"]
-DEFAULT_FRAMES_TO_EXTRACT = 10
+DEFAULT_FRAMES_TO_EXTRACT = 50
 
 INDEX_FILE_EMBEDDINGS = "indexed_embeddings.pt"
 INDEX_FILE_FILENAMES = "indexed_filenames.json"
