@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse,FileResponse,HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sentence_transformers import SentenceTransformer, util
-from pydantic import Basemodel
+from pydantic import BaseModel
 
 #---CONFIGURATION---
 MEDIA_FOLDER = "./media"
