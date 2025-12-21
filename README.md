@@ -1,21 +1,21 @@
-# AI-Powered Media Search
+# home gallery
 
 I wanted to create my personal google drive by having a home server that has all my images and videos and being able to connect to it and download into my main device whatever media I want. 
 I use tailscale for connecting my devices via VPN so that connecting to the web app is secure and personal of use. I will update this README whenver I have the type to explain exactly how to run the web app.
 
+in this repo I will explain how to set this up so that you have your own home gallery too using your home server.
+In my case, my home server is an archlinux machine, but I do think it works with any other machine.
+![App Interface]<img width="1468" height="794" alt="Screenshot 2025-12-21 at 22 32 48" src="https://github.com/user-attachments/assets/b0e302ff-07df-4801-ab3b-36e804db7260" />
 
-![App Interface]
 
 ## Features
 
-- 🔍 **Semantic Search** - Search images and videos using natural language descriptions
-- 🤖 **AI-Powered** - Uses OpenAI's CLIP model for intelligent visual understanding
-- 🎨 **Modern UI** - Beautiful gradient backgrounds with glassmorphism effects
-- ⚡ **Fast Indexing** - Efficient media indexing with frame extraction for videos
-- 📊 **Similarity Scores** - Visual similarity percentages for each result
-- 🎥 **Video Support** - Full support for video files with thumbnail generation
-- 📥 **Download Options** - Easy download functionality for all media
-- 🔄 **Real-time Search** - Instant results as you type
+- **Semantic Search** - Search images and videos using natural language descriptions
+- **AI-Powered** - Uses OpenAI's CLIP model for intelligent visual understanding
+-  **Fast Indexing** - Efficient media indexing with frame extraction for videos
+-  **Similarity Scores** - Visual similarity percentages for each result
+-  **Video Support** - Full support for video files with thumbnail generation
+-  **Download Options** - Easy download functionality for all media
 
 ## Prerequisites
 
@@ -26,28 +26,22 @@ I use tailscale for connecting my devices via VPN so that connecting to the web 
 ## Installation
 
 ### 1. Install System Dependencies
-
+1.install tailscale on all you machines and login using the same account
 **Arch Linux:**
 ```bash
-sudo pacman -S ffmpeg
+sudo pacman -S tailscale
+sudo systemctl enable --now tailscaled
 ```
-
-**Ubuntu/Debian:**
+for login :
 ```bash
-sudo apt update
-sudo apt install ffmpeg
-```
-
-**macOS:**
-```bash
-brew install ffmpeg
+sudo tailscale up
 ```
 
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/ai-media-search.git
-cd ai-media-search
+git clone https://github.com/medaminechafii/home-ai-gallery.git
+cd home-ai-gallery
 ```
 
 ### 3. Create Virtual Environment
@@ -60,7 +54,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 ### 4. Install Python Dependencies
 
 ```bash
-pip install flask torch torchvision pillow opencv-python clip
+pip install -r requirements.txt
 ```
 
 ### 5. Set Up Media Directory
@@ -83,18 +77,19 @@ ln -s /path/to/your/media/* media/
 ### 1. Start the Server
 
 ```bash
-python search-request.py
+uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 The server will:
 - Index all media files in the `media` directory
 - Generate thumbnails for videos
-- Start a Flask server on `http://localhost:5000`
+- Start a FastAPI server on `http://localhost:8000` (FASTAPI by default uses port 8000)
 
 ### 2. Open the App
 
-Navigate to `http://localhost:5000` in your web browser.
+Navigate to `http://tailscaleIP:8000` in your web browser.
 
+ replace tailscaleIP by your host IP address provided by tailscale
 ### 3. Search
 
 Type a natural language query like:
@@ -109,7 +104,7 @@ The AI will find visually similar images and videos from your media collection.
 
 ```
 .
-├── search-request.py       # Flask backend with CLIP model
+├── app.py       # FastAPI backend with CLIP model
 ├── static/
 │   ├── script.js          # Frontend JavaScript
 │   └── style.css          # Modern UI styling
@@ -123,35 +118,34 @@ The AI will find visually similar images and videos from your media collection.
 
 ### Change Media Directory
 
-Edit the `MEDIA_DIR` variable in `search-request.py`:
+Edit the `MEDIA_FOLDER` variable in `app.py`:
 
 ```python
-MEDIA_DIR = "path/to/your/media"
+MEDIA_FOLDER = "path/to/your/media"
 ```
 
-### Change Port
-
-Edit the last line in `search-request.py`:
-
-```python
-app.run(debug=True, port=5000)  # Change port here
-```
 
 ### Video Frame Extraction
 
-By default, 5 frames are extracted from each video. To change this, edit `extract_frames()` in `search-request.py`:
+By default, 10 frames are extracted from each video. To change this, edit `DEFAULT_FRAMES_TO_EXTRACT` in `app.py`:
 
 ```python
-NUM_FRAMES = 5  # Change this value
+DEFAULT_FRAMES_TO_EXTRACT = 10  # Change this value
 ```
 
 ## Dependencies
 
-- **Flask** - Web framework
+- **FastAPI** - Web framework
 - **PyTorch** - Deep learning framework
 - **CLIP** - OpenAI's vision-language model
 - **OpenCV** - Video processing
 - **Pillow** - Image processing
+
+## Points to improve
+
+- **Download** -needs some changes for a faster download
+- **Finetuning** -the clip model does make some mistakes so it needs some finetuning
+- **interface** -the interface lacks a little bit of functionalities(like choosing the threshold and top_k in search)
 
 ## Troubleshooting
 
@@ -190,12 +184,5 @@ MIT License - feel free to use this project for personal or commercial purposes.
 
 Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
 
-## Screenshots
 
-Add your screenshots here:
-- Main search interface
-- Search results
-- Video playback
-
----
 
