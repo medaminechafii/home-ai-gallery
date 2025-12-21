@@ -136,6 +136,13 @@ async def read_root():
     with open("static/index.html", "r") as f:
         return f.read()
     
+app.mount("/static", StaticFiles(directory="static"),name="static")
+@app.get("/",response_class=HTMLResponse)
+async def read_root():
+    """Serve the main HTML page."""
+    with open("static/index.html", "r") as f:
+        return f.read()
+    
 model = None
 def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FRAMES_TO_EXTRACT):
     """Indexes all media files in the specified folder."""
