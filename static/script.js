@@ -1,4 +1,10 @@
 /*********************************
+ * GLOBAL STATE
+ *********************************/
+let currentResults = []
+let displayedCount = 0   
+const RESULT_PER_PAGE = 20
+/*********************************
  * 1. DOM REFERENCES
  *********************************/
 
@@ -17,7 +23,8 @@ const resultsContainer = document.querySelector(".results")
 if (!resultsContainer) {
   console.error("results container not found in DOM")
 }
-
+const MEDIA_PATH = "/media/"
+const THUMBNAIL_PATH = "/thumbnail/"
 /*********************************
  * 2. INITIALIZATION
  *********************************/
@@ -113,7 +120,7 @@ function renderResults(mediaList) {
   mediaList.forEach((media) => {
     if (media.source === "Image") {
       renderImageCard(media)
-    } else if (media.source === "Video Frame") {
+    } else if (media.source === "Video") {
       renderVideoCard(media)
     }
   })
@@ -124,7 +131,19 @@ function renderImageCard(media) {
   card.className = "media-card"
 
   const img = document.createElement("img")
-  img.src = `/media/${media.filename}`
+
+  img.loading = "lazy"
+
+  if (media.thumbnail){
+    img.src = `${THUMBNAIL_PATH}${media.thumbnail}`
+  }
+  else{
+    img.src = `${MEDIA_PATH}${encodeUIOComponent(media.filename)}`
+  }
+  img.style.cursor = "pointer"
+  img.addEventListener("click", () => {
+    window.open(`${MEDIA_PATH}${encodeURIComponent(media.filename)}`, "_blank")
+  })
   img.alt = media.filename
 
   const scoreBadge = document.createElement("div")
@@ -146,12 +165,42 @@ function renderImageCard(media) {
 }
 
 function renderVideoCard(media) {
+  console.log("Rendering video:", media)
+  console.log("Thumbnail hash:", media.thumbnail)
+
   const card = document.createElement("div")
   card.className = "media-card"
 
-  const video = document.createElement("video")
-  video.src = `/media/${media.filename}`
-  video.controls = true
+  const videoContainer = document.createElement("div")
+  videoContainer.className = "video-container"
+  const thumbnail = document.createElement("img")
+  if (media.thumbnail){
+    thumbURL = `${THUMBNAIL_PATH}${media.thumbnail}`
+    console.log("Thumbnail URL:", thumbURL)
+    thumbnail.src = thumbURL
+  }
+  else{
+    console.log("No thumbnail, using media file")
+    thumbURL = `${MEDIA_PATH}${encodeURIComponent(media.filename)}`
+    thumbnail.src = thumbURL
+  }
+  thumbnail.className = "video-thumbnail"
+
+  const playButton = document.createElement("div")
+  playButton.className = "play-button"
+  playButton.innerHTML = "▶"
+  videoContainer.addEventListener("click", () => {
+    videoContainer.innerHTML = ""
+    video = document.createElement("video")
+    video.src = `${MEDIA_PATH}${encodeURIComponent(media.filename)}`
+    video.controls = true
+    video.autoplay = true
+    video.className = "video-player"
+    videoContainer.appendChild(video)
+  })
+
+  videoContainer.appendChild(thumbnail)
+  videoContainer.appendChild(playButton)
 
   const scoreBadge = document.createElement("div")
   scoreBadge.className = "score-badge"
@@ -165,9 +214,10 @@ function renderVideoCard(media) {
   downloadBtn.addEventListener("click", () => handleDownload(media))
 
   actionsDiv.appendChild(downloadBtn)
-  card.appendChild(video)
+  card.appendChild(videoContainer)
   card.appendChild(scoreBadge)
   card.appendChild(actionsDiv)
+  
   resultsContainer.appendChild(card)
 }
 
@@ -221,4 +271,68 @@ function showError(message) {
         </div>
     `
   resultsContainer.classList.add("error")
+}
+/*********************************
+ * 9. Limit initial Results
+ *********************************/
+
+
+async function searchFlow(keyword) {
+  showLoading()
+  try{
+    const results = await fetchSearchResults(keyword)
+    hideLoading()
+    clearResults()
+    if (results.length === 0) {
+      showEmptyState()
+      return
+    }
+    currentResults = results
+    displayedCount = 0
+    renderMoreResults()
+  }
+  catch (error) {
+    console.error("Search error:", error)
+    hideLoading()
+    showError(error.message)
+  }
+}
+function renderMoreResults() {
+  hideLoadMoreButton()
+  const nextBatch = currentResults.slice(displayedCount, displayedCount + RESULT_PER_PAGE)
+  nextBatch.forEach((media) => {
+    if (media.source === "Image") {
+      renderImageCard(media)
+    } else if (media.source === "Video") {
+      renderVideoCard(media)
+    }
+  })
+  displayedCount += nextBatch.length 
+  if(displayedCount < currentResults.length){
+    showLoadMoreButton()
+  }
+  else{
+    hideLoadMoreButton()
+  }
+}
+function showLoadMoreButton() {
+  let loadMoreBtn = document.getElementById("load-more-btn")
+  if (!loadMoreBtn) {
+    loadMoreBtn = document.createElement("button")
+    loadMoreBtn.id = "load-more-btn"
+    loadMoreBtn.textContent = "Load More"
+    loadMoreBtn.addEventListener("click", renderMoreResults)
+    resultsContainer.appendChild(loadMoreBtn)
+  }
+  else{
+    loadMoreBtn.textContent = `Load More (${currentResults.length - displayedCount} remaining)`
+    resultsContainer.appendChild(loadMoreBtn)
+  }
+}
+
+function hideLoadMoreButton() {
+  const loadMoreBtn = document.getElementById("load-more-btn")
+  if (loadMoreBtn) {
+    loadMoreBtn.remove()
+  }
 }

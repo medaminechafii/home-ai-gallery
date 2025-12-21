@@ -1,9 +1,11 @@
 #project files to ignore
 __pycache__
 .DS_Store
+.venv
 venv
 media
 env
+thumbnails
 indexed_filenames.json
 indexed_embeddings.pt
 #general python ignores
