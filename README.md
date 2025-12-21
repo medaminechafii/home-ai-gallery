@@ -78,6 +78,7 @@ ln -s /path/to/your/media/* media/
 ```bash
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
+you can use gpu for a little bit of acceleration if needed
 
 The server will:
 - Index all media files in the `media` directory
@@ -110,6 +111,8 @@ The AI will find visually similar images and videos from your media collection.
 ├── index.html             # Main HTML interface
 ├── media/                 # Your images and videos
 ├── thumbnails/            # Auto-generated video thumbnails
+├── indexed_embeddings.pt  #media embedding vectors for caching
+├──indexed_filenames.json  #filenames database
 └── README.md             # This file
 ```
 
