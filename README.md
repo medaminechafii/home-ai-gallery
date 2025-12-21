@@ -10,7 +10,6 @@ In my case, my home server is an archlinux machine, but I do think it works with
 
 ## Features
 
-- **Semantic Search** - Search images and videos using natural language descriptions
 - **AI-Powered** - Uses OpenAI's CLIP model for intelligent visual understanding
 -  **Fast Indexing** - Efficient media indexing with frame extraction for videos
 -  **Similarity Scores** - Visual similarity percentages for each result
