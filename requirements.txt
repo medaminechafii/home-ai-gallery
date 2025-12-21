@@ -6,5 +6,3 @@ torch
 opencv-python
 Pillow
 sentence-transformers
-#interface to run the app
-streamlit

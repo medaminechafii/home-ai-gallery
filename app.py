@@ -5,14 +5,15 @@ import uvicorn
 import cv2
 from PIL import Image
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse,FileResponse,FileResponse
-from sentence_transformers import SentenceTransformer, util  
-from fastapi.staticfiles import StaticFiles 
+from fastapi.responses import JSONResponse,FileResponse,HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from sentence_transformers import SentenceTransformer, util
 from pydantic import BaseModel
-
+import hashlib
 
 #---CONFIGURATION---
 MEDIA_FOLDER = "./media"
+THUMBNAIL_FOLDER = "./thumbnails"
 #Global Variables for the index
 indexed_embeddings = None
 indexed_filenames = []
@@ -21,7 +22,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 IMAGE_EXTENTIONS = [".jpg", ".jpeg", ".png", ".bmp", ".tiff"]
 VIDEO_EXTENTIONS = [".mp4", ".avi", ".mov", ".mkv"]
-DEFAULT_FRAMES_TO_EXTRACT = 50
+DEFAULT_FRAMES_TO_EXTRACT = 10
 
 INDEX_FILE_EMBEDDINGS = "indexed_embeddings.pt"
 INDEX_FILE_FILENAMES = "indexed_filenames.json"
@@ -31,11 +32,56 @@ class searchRequest(BaseModel):
     top_k: int = 50
     score_threshold: float = 0.2
 
+THUMBNAIL_SIZE = (400,400)
+os.makedirs(THUMBNAIL_FOLDER, exist_ok=True)
+
 #---END CONFIGURATION---
 
 # =========================================================================
-# 1. CORE UTILITY FUNCTIONS (Your Optimized Code)
+# 1. CORE UTILITY FUNCTIONS 
 # =========================================================================
+
+def generate_thumbnail(image_path):
+  """Generate and save a thumbnail for the given image."""
+  filename_hash = hashlib.md5(image_path.encode()).hexdigest()
+  thumbnail_path = os.path.join(THUMBNAIL_FOLDER, f"{filename_hash}.jpg")
+  if os.path.exists(thumbnail_path):
+     return thumbnail_path
+  try:
+      with Image.open(image_path) as img:
+        img.thumbnail(THUMBNAIL_SIZE,Image.Resampling.LANCZOS)
+        img.convert("RGB").save(thumbnail_path, "JPEG",quality=85)
+      return thumbnail_path
+  except Exception as e:
+      print(f"Error generating thumbnail for {image_path}: {e}")
+      return None
+
+def generate_video_thumbnail(video_path):
+  """Generate and save a thumbnail for the given video."""
+  filename_hash = hashlib.md5(video_path.encode()).hexdigest()
+  thumbnail_path = os.path.join(THUMBNAIL_FOLDER, f"{filename_hash}.jpg")
+  if os.path.exists(thumbnail_path):
+     return thumbnail_path
+  try:
+      cap = cv2.VideoCapture(video_path)
+      if not cap.isOpened():
+          print(f"ERROR: Cannot open video file {video_path} - file may be corrupted")
+          cap.release()
+          return None
+      ret, frame = cap.read()
+      cap.release()
+      if ret:
+          rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+          pil_image = Image.fromarray(rgb_frame)
+          pil_image.thumbnail(THUMBNAIL_SIZE,Image.Resampling.LANCZOS)
+          pil_image.convert("RGB").save(thumbnail_path, "JPEG",quality=85)
+      else:
+        print(f"ERROR: Cannot read frame from {video_path} - file may be corrupted or incomplete")
+      return thumbnail_path
+  except Exception as e:
+      print(f"Error generating thumbnail for {video_path}: {e}")
+      return None
+
 
 def extract_frames(video_path,desired_frames_per_media:int = DEFAULT_FRAMES_TO_EXTRACT):
   """
@@ -83,80 +129,120 @@ def extract_frames(video_path,desired_frames_per_media:int = DEFAULT_FRAMES_TO_E
 # =========================================================================
 
 app = FastAPI(title="Multimedia Semantic Search API")
-app.mount("/static", StaticFiles(directory="static"), name="static")
-@app.get("/")
+app.mount("/static", StaticFiles(directory="static"),name="static")
+@app.get("/",response_class=HTMLResponse)
 async def read_root():
-    return FileResponse("static/index.html")
+    """Serve the main HTML page."""
+    with open("static/index.html", "r") as f:
+        return f.read()
+    
 model = None
-def index_all_media(media_folder:str,video_frames_to_extract:int = DEFAULT_FRAMES_TO_EXTRACT):
-   
-  """Indexes all media files in the specified folder."""
-
-  """Docstring for index_all_media
-    :param media_folder: Description
-    :param video_frames_to_extract: Description
-    :type video_frames_to_extract: int
-    """
-  global indexed_embeddings,indexed_filenames,model
-  elements = os.listdir(media_folder)
-  print(f"\n[INDEXING] Found {len(elements)} files in '{media_folder}' folder.")
-  images_to_encode = []
-  label = []
-  for filename in elements:
-
-    full_path = os.path.join(media_folder, filename)
-    if not os.path.isfile(full_path):
+def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FRAMES_TO_EXTRACT):
+    """Indexes all media files in the specified folder."""
+    global indexed_embeddings, indexed_filenames, model
+    
+    elements = os.listdir(media_folder)
+    print(f"\n[INDEXING] Found {len(elements)} files in '{media_folder}' folder.")
+    
+    all_embeddings = []
+    all_labels = []
+    
+    # Process files one at a time to avoid memory issues
+    for idx, filename in enumerate(elements):
+        full_path = os.path.join(media_folder, filename)
+        
+        if not os.path.isfile(full_path):
+            continue
+        
+        print(f"[{idx+1}/{len(elements)}] Processing: {filename}")
+        
+        images_to_encode = []
+        
+        # Process videos
+        if filename.endswith(tuple(VIDEO_EXTENTIONS)):
+            try:
+                frames_generator = extract_frames(full_path, video_frames_to_extract)
+                for frame in frames_generator:
+                    images_to_encode.append(frame)
+            except Exception as e:
+                print(f"  Error processing video: {e}")
+                continue
+        
+        # Process images
+        elif filename.endswith(tuple(IMAGE_EXTENTIONS)):
+            try:
+                images_to_encode.append(Image.open(full_path))
+            except Exception as e:
+                print(f"  Error processing image: {e}")
+                continue
+        
+        else:
+            continue  # Skip non-media files
+        
+        if not images_to_encode:
+            continue
+        
+        # Encode this file's frames immediately
+        print(f"  Encoding {len(images_to_encode)} frames...")
+        
+        try:
+            file_embeddings = model.encode(
+                images_to_encode,
+                batch_size=8,
+                convert_to_tensor=True,
+                show_progress_bar=False,
+                device=DEVICE
+            )
+            
+            # Move to CPU to save GPU memory
+            all_embeddings.append(file_embeddings.cpu())
+            all_labels.extend([filename] * len(images_to_encode))
+            
+            # Free memory immediately
+            del images_to_encode
+            del file_embeddings
+            
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            
+            # Garbage collection every 10 files
+            if (idx + 1) % 10 == 0:
+                import gc
+                gc.collect()
+                print(f"  Memory cleanup done ({idx+1} files processed)")
+        
+        except Exception as e:
+            print(f"  Error encoding: {e}")
+            del images_to_encode
             continue
     
-    if filename.endswith(tuple(VIDEO_EXTENTIONS)):
-      try:
-        frames_generator = extract_frames(full_path,video_frames_to_extract)
-
-        for i,frame in enumerate(frames_generator):
-          images_to_encode.append(frame)
-          label.append(filename)
-      except Exception as e:
-        print(f"Error processing video {filename}: {e}")
-        continue
-
-    if filename.endswith(tuple(IMAGE_EXTENTIONS)):
-      try:
-        images_to_encode.append(Image.open(full_path))
-        label.append(filename)
-      except Exception as e:
-        print(f"Error processing image {filename}: {e}")
-        continue
-
-  if not images_to_encode:
-    print("No images or videos found in the folder.")
-    indexed_embeddings = None
-    indexed_filenames = []
+    # Combine all embeddings
+    if all_embeddings:
+        print("\nCombining all embeddings...")
+        indexed_embeddings = torch.cat(all_embeddings, dim=0).to(DEVICE)
+        indexed_filenames = all_labels
+        
+        print("\n--- Indexing Complete ---")
+        print(f"Total Vectors: {indexed_embeddings.shape[0]}")
+        print(f"Vector Dimensions: {indexed_embeddings.shape[1]}")
+        
+        print("[PERSISTENCE] Saving index to disk...")
+        torch.save(indexed_embeddings, INDEX_FILE_EMBEDDINGS)
+        with open(INDEX_FILE_FILENAMES, "w") as f:
+            json.dump(all_labels, f)
+        print(f"Index saved to '{INDEX_FILE_EMBEDDINGS}' and '{INDEX_FILE_FILENAMES}'")
+        print("-------------------------\n")
+    else:
+        print("No images or videos found in the folder.")
+        indexed_embeddings = None
+        indexed_filenames = []
+    
     return None
-  
-  indexed_filenames = label
-  print(f"{len(images_to_encode)} images or videos found.")
-  print(f"Encoding {len(images_to_encode)} total frames/images on {DEVICE}...")
-  print("Encoding images...")
 
-  indexed_embeddings = model.encode(images_to_encode,batch_size=64,
-                                    convert_to_tensor=True,
-                                    show_progress_bar=True,
-                                    device = DEVICE)
-  
-  print("\n--- Indexing Complete ---")
-  print(f"Total Vectors: {indexed_embeddings.shape[0]}")
-  print(f"Vector Dimensions: {indexed_embeddings.shape[1]}")
-  print("[PERSISTENCE] Saving index to disk...")
-  torch.save(indexed_embeddings, INDEX_FILE_EMBEDDINGS)
-  with open(INDEX_FILE_FILENAMES, "w") as f:
-    json.dump(label, f)
-  print(f"Index saved to '{INDEX_FILE_EMBEDDINGS}' and '{INDEX_FILE_FILENAMES}'")
-  print("-------------------------\n")
-  return None
 @app.on_event("startup")
 async def startup_event():
     """Load the model and index media files on startup."""
-    global model
+    global model, indexed_embeddings, indexed_filenames
     if os.path.exists(INDEX_FILE_EMBEDDINGS) and os.path.exists(INDEX_FILE_FILENAMES):
        try:
           print("Loading existing index from disk...")
@@ -166,11 +252,13 @@ async def startup_event():
           print("\n--- Index Loaded Successfully ---")
           print(f"Total Vectors: {indexed_embeddings.shape[0]}")
           print(f"Vector Dimensions: {indexed_embeddings.shape[1]}")
+          print("Loading model...")
+          model = SentenceTransformer(MODEL_NAME, device=DEVICE)
+          print(f"Model '{MODEL_NAME}' loaded on {DEVICE}.")
           print("---------------------------------\n")
+          return
        except Exception as e:
           print(f"[ERROR] Could not load saved index ({e}). Recalculating index...")
-          pass
-   
     print("Loading model...")
     model = SentenceTransformer(MODEL_NAME, device=DEVICE)
     print(f"Model '{MODEL_NAME}' loaded on {DEVICE}.")
@@ -199,11 +287,19 @@ def search_media(query:str,top_k:int = 50,score_threshold:float = 0.21):
     filename = indexed_filenames[index]
     if score < score_threshold:
       continue
+    is_video = filename.lower().endswith(tuple(VIDEO_EXTENTIONS))
+    if is_video:
+      thumb_path = generate_video_thumbnail(os.path.join(MEDIA_FOLDER,filename))
+    else:
+      thumb_path = generate_thumbnail(os.path.join(MEDIA_FOLDER,filename))
+    full_path = os.path.join(MEDIA_FOLDER,filename)
+    thumb_hash = hashlib.md5(full_path.encode()).hexdigest() if thumb_path else None
     if filename not in final_results or score > final_results[filename]["score"]:
      final_results[filename] = {
          "score":score,
          "filename":filename,
-         "source": "Video Frame" if filename.lower().endswith(tuple(VIDEO_EXTENTIONS)) else "Image"
+         "thumbnail":thumb_hash,
+         "source": "Video" if is_video else "Image"
      }
 
      sorted_results = sorted(final_results.values(),key=lambda x:x["score"],reverse=True)
@@ -217,6 +313,7 @@ def api_search(request: searchRequest):
         return JSONResponse(content=results)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
 @app.get("/media/{filename}")
 async def get_media_file(filename: str):
     """API endpoint to retrieve a media file by filename."""
@@ -224,5 +321,13 @@ async def get_media_file(filename: str):
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(path=file_path, filename=filename)
+
+@app.get("/thumbnail/{filename}")
+async def get_thumbnail_file(filename: str):
+  """API endpoint to retrieve a thumbnail for a media file by filename."""
+  thumb_path = os.path.join(THUMBNAIL_FOLDER, f"{filename}.jpg")
+  if not os.path.isfile(thumb_path):
+      raise HTTPException(status_code=404, detail="File not found")
+  return FileResponse(path = thumb_path,media_type="image/jpeg",filename=filename)
 
 
