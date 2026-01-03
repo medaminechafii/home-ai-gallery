@@ -442,6 +442,64 @@ def search_media(query:str,top_k:int = 50,score_threshold:float = 0.21):
      sorted_results = sorted(final_results.values(),key=lambda x:x["score"],reverse=True)
   return {"query": query, "total_matches": len(sorted_results), "results": sorted_results[:top_k]}
     
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring and status."""
+    try:
+        # Check if model is loaded
+        model_status = model is not None
+        
+        # Check index status
+        index_status = indexed_embeddings is not None and len(indexed_filenames) > 0
+        indexed_count = len(indexed_filenames) if indexed_filenames else 0
+        
+        # Check media folder accessibility
+        media_accessible = os.path.exists(MEDIA_FOLDER) and os.path.isdir(MEDIA_FOLDER)
+        
+        # Check thumbnail folder
+        thumbnail_accessible = os.path.exists(THUMBNAIL_FOLDER) and os.path.isdir(THUMBNAIL_FOLDER)
+        
+        # Count files in media folder
+        media_files = 0
+        if media_accessible:
+            try:
+                media_files = len([f for f in os.listdir(MEDIA_FOLDER) if os.path.isfile(os.path.join(MEDIA_FOLDER, f))])
+            except Exception:
+                media_files = -1  # Error counting files
+        
+        # Overall health status
+        overall_healthy = model_status and index_status and media_accessible and thumbnail_accessible
+        
+        health_data = {
+            "status": "healthy" if overall_healthy else "unhealthy",
+            "timestamp": time.time(),
+            "checks": {
+                "model_loaded": model_status,
+                "index_ready": index_status,
+                "media_accessible": media_accessible,
+                "thumbnail_accessible": thumbnail_accessible
+            },
+            "stats": {
+                "indexed_files": indexed_count,
+                "total_media_files": media_files,
+                "device": DEVICE,
+                "model_name": MODEL_NAME
+            }
+        }
+        
+        # Return appropriate HTTP status
+        status_code = 200 if overall_healthy else 503
+        
+        return JSONResponse(content=health_data, status_code=status_code)
+        
+    except Exception as e:
+        error_data = {
+            "status": "error",
+            "timestamp": time.time(),
+            "error": str(e)
+        }
+        return JSONResponse(content=error_data, status_code=500)
+
 @app.post("/reindex")
 async def force_reindex():
     """Force reindexing of all media files."""
