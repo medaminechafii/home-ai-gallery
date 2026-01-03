@@ -197,34 +197,23 @@ function renderVideoCard(media) {
 
   const videoContainer = document.createElement("div")
   videoContainer.className = "video-container"
-  const thumbnail = document.createElement("img")
-  if (media.thumbnail){
-    thumbURL = `${THUMBNAIL_PATH}${media.thumbnail}`
-    console.log("Thumbnail URL:", thumbURL)
-    thumbnail.src = thumbURL
-  }
-  else{
-    console.log("No thumbnail, using media file")
-    thumbURL = `${MEDIA_PATH}${encodeURIComponent(media.filename)}`
-    thumbnail.src = thumbURL
-  }
-  thumbnail.className = "video-thumbnail"
 
-  const playButton = document.createElement("div")
-  playButton.className = "play-button"
-  playButton.innerHTML = "▶"
-  videoContainer.addEventListener("click", () => {
-    videoContainer.innerHTML = ""
-    video = document.createElement("video")
-    video.src = `${MEDIA_PATH}${encodeURIComponent(media.filename)}`
-    video.controls = true
-    video.autoplay = true
-    video.className = "video-player"
-    videoContainer.appendChild(video)
+  const img = document.createElement("img")
+  img.loading = "lazy"
+  img.src = `${THUMBNAIL_PATH}${media.thumbnail}`
+  img.alt = media.filename
+  img.style.cursor = "pointer"
+  img.addEventListener("click", () => {
+    window.open(`${MEDIA_PATH}${encodeURIComponent(media.filename)}`, "_blank")
   })
 
-  videoContainer.appendChild(thumbnail)
-  videoContainer.appendChild(playButton)
+  const playIcon = document.createElement("div")
+  playIcon.className = "play-icon"
+  playIcon.textContent = "▶"
+
+  videoContainer.appendChild(img)
+  videoContainer.appendChild(playIcon)
+  card.appendChild(videoContainer)
 
   const scoreBadge = document.createElement("div")
   scoreBadge.className = "score-badge"
@@ -238,10 +227,8 @@ function renderVideoCard(media) {
   downloadBtn.addEventListener("click", () => handleDownload(media))
 
   actionsDiv.appendChild(downloadBtn)
-  card.appendChild(videoContainer)
   card.appendChild(scoreBadge)
   card.appendChild(actionsDiv)
-  
   resultsContainer.appendChild(card)
 }
 
