@@ -5,7 +5,7 @@ I use tailscale for connecting my devices via VPN so that connecting to the web 
 
 in this repo I will explain how to set this up so that you have your own home gallery too using your home server.
 In my case, my home server is an archlinux machine, but I do think it works with any other machine.
-![App Interface]<img width="1468" height="794" alt="Screenshot 2025-12-21 at 22 32 48" src="https://github.com/user-attachments/assets/b0e302ff-07df-4801-ab3b-36e804db7260" />
+![App Interface]<img width="1457" height="793" alt="Screenshot 2026-01-03 at 19 17 16" src="https://github.com/user-attachments/assets/2f5f87f5-659d-403f-8e15-0f45a0e7f606" />
 
 
 ## Features
