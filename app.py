@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from sentence_transformers import SentenceTransformer, util
 from pydantic import BaseModel
 import hashlib
+import time
 
 #---CONFIGURATION---
 MEDIA_FOLDER = "./media"
@@ -26,6 +27,7 @@ DEFAULT_FRAMES_TO_EXTRACT = 10
 
 INDEX_FILE_EMBEDDINGS = "indexed_embeddings.pt"
 INDEX_FILE_FILENAMES = "indexed_filenames.json"
+INDEX_FILE_METADATA = "indexed_files_metadata.json"  # Track file modification times
 
 def validate_file_path(file_path: str, allowed_directory: str) -> bool:
     """
@@ -74,6 +76,33 @@ def validate_file_path(file_path: str, allowed_directory: str) -> bool:
     except Exception as e:
         print(f"[SECURITY] Error validating path {file_path}: {e}")
         return False
+
+def load_file_metadata():
+    """Load file modification times from metadata file."""
+    if os.path.exists(INDEX_FILE_METADATA):
+        try:
+            with open(INDEX_FILE_METADATA, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[WARNING] Could not load file metadata: {e}")
+    return {}
+
+def save_file_metadata(metadata):
+    """Save file modification times to metadata file."""
+    try:
+        with open(INDEX_FILE_METADATA, "w") as f:
+            json.dump(metadata, f, indent=2)
+    except Exception as e:
+        print(f"[ERROR] Could not save file metadata: {e}")
+
+def get_file_mod_time(file_path):
+    """Get file modification time, follows symlinks to get real file's mod time."""
+    try:
+        # Get the real path to follow symlinks
+        real_path = os.path.realpath(file_path)
+        return os.path.getmtime(real_path)
+    except Exception:
+        return 0
 
 def is_safe_media_file(filename: str, media_folder: str) -> bool:
     """
@@ -205,15 +234,36 @@ async def read_root():
         return f.read()
     
 model = None
-def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FRAMES_TO_EXTRACT):
-    """Indexes all media files in the specified folder."""
+def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FRAMES_TO_EXTRACT, force_reindex: bool = False):
+    """Indexes all media files in the specified folder with incremental support."""
     global indexed_embeddings, indexed_filenames, model
+    
+    # Load existing file metadata
+    existing_metadata = load_file_metadata()
+    new_metadata = {}
     
     elements = os.listdir(media_folder)
     print(f"\n[INDEXING] Found {len(elements)} files in '{media_folder}' folder.")
     
+    # Load existing index if not forcing reindex
+    existing_embeddings = None
+    existing_labels = []
+    if not force_reindex and os.path.exists(INDEX_FILE_EMBEDDINGS) and os.path.exists(INDEX_FILE_FILENAMES):
+        try:
+            print("Loading existing index from disk...")
+            existing_embeddings = torch.load(INDEX_FILE_EMBEDDINGS, map_location=DEVICE)
+            with open(INDEX_FILE_FILENAMES, "r") as f:
+                existing_labels = json.load(f)
+            print(f"Loaded {len(existing_labels)} existing embeddings.")
+        except Exception as e:
+            print(f"[WARNING] Could not load existing index: {e}. Will rebuild.")
+            existing_embeddings = None
+            existing_labels = []
+    
     all_embeddings = []
     all_labels = []
+    files_processed = 0
+    files_skipped = 0
     
     # Process files one at a time to avoid memory issues
     for idx, filename in enumerate(elements):
@@ -224,7 +274,31 @@ def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FR
             print(f"[{idx+1}/{len(elements)}] Skipping unsafe file: {filename}")
             continue
         
+        # Get file modification time
+        current_mod_time = get_file_mod_time(full_path)
+        new_metadata[filename] = current_mod_time
+        
+        # Check if file needs reindexing
+        if not force_reindex and filename in existing_metadata:
+            if existing_metadata[filename] == current_mod_time:
+                # File hasn't changed, use existing embedding if available
+                if existing_embeddings is not None:
+                    # Find existing embeddings for this file
+                    for i, existing_filename in enumerate(existing_labels):
+                        if existing_filename == filename:
+                            all_embeddings.append(existing_embeddings[i].unsqueeze(0))
+                            all_labels.append(filename)
+                            files_skipped += 1
+                            break
+                    else:
+                        # File in metadata but not in existing index, need to process
+                        pass
+                    continue
+                else:
+                    continue
+        
         print(f"[{idx+1}/{len(elements)}] Processing: {filename}")
+        files_processed += 1
         
         images_to_encode = []
         
@@ -293,6 +367,8 @@ def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FR
         indexed_filenames = all_labels
         
         print("\n--- Indexing Complete ---")
+        print(f"Files processed: {files_processed}")
+        print(f"Files skipped (unchanged): {files_skipped}")
         print(f"Total Vectors: {indexed_embeddings.shape[0]}")
         print(f"Vector Dimensions: {indexed_embeddings.shape[1]}")
         
@@ -300,39 +376,30 @@ def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FR
         torch.save(indexed_embeddings, INDEX_FILE_EMBEDDINGS)
         with open(INDEX_FILE_FILENAMES, "w") as f:
             json.dump(all_labels, f)
-        print(f"Index saved to '{INDEX_FILE_EMBEDDINGS}' and '{INDEX_FILE_FILENAMES}'")
+        save_file_metadata(new_metadata)
+        print(f"Index saved to '{INDEX_FILE_EMBEDDINGS}', '{INDEX_FILE_FILENAMES}', and '{INDEX_FILE_METADATA}'")
         print("-------------------------\n")
     else:
-        print("No images or videos found in the folder.")
-        indexed_embeddings = None
-        indexed_filenames = []
+        if existing_embeddings is not None:
+            print("No new or changed files found. Using existing index.")
+            indexed_embeddings = existing_embeddings.to(DEVICE)
+            indexed_filenames = existing_labels
+        else:
+            print("No images or videos found in the folder.")
+            indexed_embeddings = None
+            indexed_filenames = []
     
     return None
 
 @app.on_event("startup")
 async def startup_event():
-    """Load the model and index media files on startup."""
+    """Load the model and index media files on startup with incremental support."""
     global model, indexed_embeddings, indexed_filenames
-    if os.path.exists(INDEX_FILE_EMBEDDINGS) and os.path.exists(INDEX_FILE_FILENAMES):
-       try:
-          print("Loading existing index from disk...")
-          indexed_embeddings = torch.load(INDEX_FILE_EMBEDDINGS, map_location=DEVICE)
-          with open(INDEX_FILE_FILENAMES, "r") as f:
-              indexed_filenames = json.load(f)
-          print("\n--- Index Loaded Successfully ---")
-          print(f"Total Vectors: {indexed_embeddings.shape[0]}")
-          print(f"Vector Dimensions: {indexed_embeddings.shape[1]}")
-          print("Loading model...")
-          model = SentenceTransformer(MODEL_NAME, device=DEVICE)
-          print(f"Model '{MODEL_NAME}' loaded on {DEVICE}.")
-          print("---------------------------------\n")
-          return
-       except Exception as e:
-          print(f"[ERROR] Could not load saved index ({e}). Recalculating index...")
     print("Loading model...")
     model = SentenceTransformer(MODEL_NAME, device=DEVICE)
     print(f"Model '{MODEL_NAME}' loaded on {DEVICE}.")
-
+    
+    # Use incremental indexing (only process new/changed files)
     index_all_media(MEDIA_FOLDER)
 
 # =========================================================================
@@ -375,6 +442,16 @@ def search_media(query:str,top_k:int = 50,score_threshold:float = 0.21):
      sorted_results = sorted(final_results.values(),key=lambda x:x["score"],reverse=True)
   return {"query": query, "total_matches": len(sorted_results), "results": sorted_results[:top_k]}
     
+@app.post("/reindex")
+async def force_reindex():
+    """Force reindexing of all media files."""
+    try:
+        print("[API] Force reindex requested")
+        index_all_media(MEDIA_FOLDER, force_reindex=True)
+        return JSONResponse(content={"status": "success", "message": "Reindexing completed"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/search")
 def api_search(request: searchRequest):
     """API endpoint to search media files based on a text query."""
