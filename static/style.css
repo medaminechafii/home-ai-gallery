@@ -52,6 +52,9 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   
+  /* Back to top button */
+  --back-to-top-btn-size: 48px;
+  
   /* Transitions */
   --transition-fast: 150ms ease;
   --transition: 200ms ease;
@@ -575,6 +578,43 @@ body {
 .media-card img[src] {
   background: none;
   animation: none;
+}
+
+/* Back to top button */
+.back-to-top-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  background: var(--gradient-primary);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transition: var(--transition);
+  z-index: 1000;
+}
+
+.back-to-top-btn.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.back-to-top-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-xl);
+}
+
+.back-to-top-btn:active {
+  transform: translateY(0);
 }
 
 @media (max-width: 600px) {

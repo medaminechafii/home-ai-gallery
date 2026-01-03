@@ -536,6 +536,45 @@ async def health_check():
         }
         return JSONResponse(content=error_data, status_code=500)
 
+@app.get("/api/all-media")
+async def get_all_media():
+    """Get all indexed media files for browsing."""
+    try:
+        if indexed_filenames is None or len(indexed_filenames) == 0:
+            return JSONResponse(
+                content={"status": "error", "message": "No media indexed yet"},
+                status_code=404
+            )
+        
+        # Create media items with proper thumbnail generation
+        all_media = []
+        for filename in indexed_filenames:
+            # Determine if it's a video
+            ext = os.path.splitext(filename)[1].lower()
+            is_video = ext in VIDEO_EXTENTIONS
+            
+            # Generate thumbnail like the search endpoint does
+            full_path = os.path.join(MEDIA_FOLDER, filename)
+            if is_video:
+                thumb_path = generate_video_thumbnail(full_path)
+            else:
+                thumb_path = generate_thumbnail(full_path)
+            
+            # Use the same hash method as search endpoint
+            thumb_hash = hashlib.md5(full_path.encode()).hexdigest() if thumb_path else None
+            
+            all_media.append({
+                "filename": filename,
+                "thumbnail": thumb_hash,
+                "source": "Video" if is_video else "Image",
+                "score": 1.0  # Default score for browsing
+            })
+        
+        return JSONResponse(content={"media": all_media, "total": len(all_media)})
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/reindex")
 async def force_reindex():
     """Force reindexing of all media files."""

@@ -23,6 +23,7 @@ const thresholdSlider = document.getElementById("thresholdSlider")
 const thresholdValue = document.getElementById("thresholdValue")
 const topKSlider = document.getElementById("topKSlider")
 const topKValue = document.getElementById("topKValue")
+const backToTopBtn = document.getElementById("backToTopBtn")
 
 const resultsContainer = document.querySelector(".results")
 if (!resultsContainer) {
@@ -34,6 +35,13 @@ const THUMBNAIL_PATH = "/thumbnail/"
  * 2. INITIALIZATION
  *********************************/
 
+// Initialize app on page load
+document.addEventListener("DOMContentLoaded", () => {
+  initializeApp()
+  // Load all media on startup
+  loadAllMedia()
+})
+
 function initializeApp() {
   searchButton.addEventListener("click", handleSearchClick)
   searchInput.addEventListener("keydown", handleSearchEnter)
@@ -41,6 +49,28 @@ function initializeApp() {
   // Add event listeners for sliders
   thresholdSlider.addEventListener("input", updateThresholdValue)
   topKSlider.addEventListener("input", updateTopKValue)
+  
+  // Initialize back to top button
+  initializeBackToTop()
+}
+
+function initializeBackToTop() {
+  // Show/hide back to top button based on scroll position
+  window.addEventListener("scroll", () => {
+    if (window.pageYOffset > 300) {
+      backToTopBtn.classList.add("visible")
+    } else {
+      backToTopBtn.classList.remove("visible")
+    }
+  })
+  
+  // Scroll to top when clicked
+  backToTopBtn.addEventListener("click", () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    })
+  })
 }
 
 function updateThresholdValue() {
@@ -63,6 +93,8 @@ function handleSearchClick() {
     alert("Please enter a search keyword.")
     return
   }
+  // Scroll to top before searching
+  window.scrollTo({ top: 0, behavior: 'smooth' })
   searchFlow(query)
 }
 
@@ -73,6 +105,8 @@ function handleSearchEnter(event) {
       alert("Please enter a search keyword.")
       return
     }
+    // Scroll to top before searching
+    window.scrollTo({ top: 0, behavior: 'smooth' })
     searchFlow(query)
   }
 }
@@ -131,6 +165,37 @@ async function fetchSearchResults(keyword) {
   return data.results
 }
 
+async function loadAllMedia() {
+  showLoading("Loading your media collection...")
+  try {
+    // Use the new all-media endpoint
+    const response = await fetch("/api/all-media")
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    const data = await response.json()
+    hideLoading()
+    clearResults()
+    
+    if (data.media && data.media.length === 0) {
+      showEmptyState("No media found. Make sure your media folder contains images or videos.")
+      return
+    }
+    
+    // Store all results and render first batch
+    currentResults = data.media
+    displayedCount = 0
+    renderMoreResults()
+    
+  } catch (error) {
+    hideLoading()
+    console.error("Load media error:", error)
+    showError("Failed to load media collection")
+  }
+}
+
 /*********************************
  * 6. RENDERING LOGIC
  *********************************/
@@ -177,10 +242,6 @@ function renderImageCard(media, card) {
   })
   img.alt = media.filename
 
-  const scoreBadge = document.createElement("div")
-  scoreBadge.className = "score-badge"
-  scoreBadge.textContent = `${(media.score * 100).toFixed(1)}%`
-
   const actionsDiv = document.createElement("div")
   actionsDiv.className = "media-actions"
 
@@ -191,7 +252,6 @@ function renderImageCard(media, card) {
 
   actionsDiv.appendChild(downloadBtn)
   card.appendChild(img)
-  card.appendChild(scoreBadge)
   card.appendChild(actionsDiv)
 }
 
@@ -219,10 +279,6 @@ function renderVideoCard(media, card) {
   videoContainer.appendChild(playIcon)
   card.appendChild(videoContainer)
 
-  const scoreBadge = document.createElement("div")
-  scoreBadge.className = "score-badge"
-  scoreBadge.textContent = `${(media.score * 100).toFixed(1)}%`
-
   const actionsDiv = document.createElement("div")
   actionsDiv.className = "media-actions"
 
@@ -232,7 +288,6 @@ function renderVideoCard(media, card) {
   downloadBtn.addEventListener("click", () => handleDownload(media))
 
   actionsDiv.appendChild(downloadBtn)
-  card.appendChild(scoreBadge)
   card.appendChild(actionsDiv)
 }
 
