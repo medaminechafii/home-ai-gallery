@@ -27,6 +27,73 @@ DEFAULT_FRAMES_TO_EXTRACT = 10
 INDEX_FILE_EMBEDDINGS = "indexed_embeddings.pt"
 INDEX_FILE_FILENAMES = "indexed_filenames.json"
 
+def validate_file_path(file_path: str, allowed_directory: str) -> bool:
+    """
+    Validate that a file path is safe to access.
+    For actual files: ensures they're within the allowed directory
+    For symlinks: allows symlinks within allowed directory but validates they don't point to dangerous locations
+    """
+    try:
+        # Get the absolute path (resolves .. but not symlinks)
+        abs_path = os.path.abspath(file_path)
+        abs_allowed = os.path.abspath(allowed_directory)
+        
+        # First check: the file/link itself must be within allowed directory
+        if not abs_path.startswith(abs_allowed):
+            return False
+        
+        # If it's a symlink, check where it points
+        if os.path.islink(abs_path):
+            # Get the real path the symlink points to
+            real_path = os.path.realpath(abs_path)
+            
+            # Block dangerous system directories
+            dangerous_paths = [
+                "/etc", "/usr", "/bin", "/sbin", "/boot", "/sys", "/proc",
+                "/var/log", "/var/run", "/tmp", "/dev"
+            ]
+            
+            for dangerous in dangerous_paths:
+                if real_path.startswith(dangerous):
+                    print(f"[SECURITY] Blocked symlink pointing to system directory: {real_path}")
+                    return False
+            
+            # Allow user directories and mounted drives (your use case)
+            # This allows symlinks to ~/Downloads, /mnt/usb-images, etc.
+            allowed_target_prefixes = [
+                "/home/", "/Users/", "/mnt/", "/media/", "/data/"
+            ]
+            
+            # If it doesn't start with allowed prefixes, block it
+            if not any(real_path.startswith(prefix) for prefix in allowed_target_prefixes):
+                print(f"[SECURITY] Blocked symlink to untrusted location: {real_path}")
+                return False
+        
+        return True
+        
+    except Exception as e:
+        print(f"[SECURITY] Error validating path {file_path}: {e}")
+        return False
+
+def is_safe_media_file(filename: str, media_folder: str) -> bool:
+    """
+    Check if a file is safe to process - validates extension and path security.
+    """
+    file_path = os.path.join(media_folder, filename)
+    
+    # Check if it's a file and exists
+    if not os.path.isfile(file_path):
+        return False
+    
+    # Validate path security (prevents symlink attacks)
+    if not validate_file_path(file_path, media_folder):
+        print(f"[SECURITY] Blocked potentially unsafe file: {filename}")
+        return False
+    
+    # Check file extension
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in IMAGE_EXTENTIONS or ext in VIDEO_EXTENTIONS
+
 class searchRequest(BaseModel):
     query: str
     top_k: int = 50
@@ -130,13 +197,7 @@ def extract_frames(video_path,desired_frames_per_media:int = DEFAULT_FRAMES_TO_E
 
 app = FastAPI(title="Multimedia Semantic Search API")
 app.mount("/static", StaticFiles(directory="static"),name="static")
-@app.get("/",response_class=HTMLResponse)
-async def read_root():
-    """Serve the main HTML page."""
-    with open("static/index.html", "r") as f:
-        return f.read()
-    
-app.mount("/static", StaticFiles(directory="static"),name="static")
+
 @app.get("/",response_class=HTMLResponse)
 async def read_root():
     """Serve the main HTML page."""
@@ -158,7 +219,9 @@ def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FR
     for idx, filename in enumerate(elements):
         full_path = os.path.join(media_folder, filename)
         
-        if not os.path.isfile(full_path):
+        # Security check - skip if not a safe media file
+        if not is_safe_media_file(filename, media_folder):
+            print(f"[{idx+1}/{len(elements)}] Skipping unsafe file: {filename}")
             continue
         
         print(f"[{idx+1}/{len(elements)}] Processing: {filename}")
@@ -166,7 +229,7 @@ def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FR
         images_to_encode = []
         
         # Process videos
-        if filename.endswith(tuple(VIDEO_EXTENTIONS)):
+        if filename.lower().endswith(tuple(VIDEO_EXTENTIONS)):
             try:
                 frames_generator = extract_frames(full_path, video_frames_to_extract)
                 for frame in frames_generator:
@@ -176,7 +239,7 @@ def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FR
                 continue
         
         # Process images
-        elif filename.endswith(tuple(IMAGE_EXTENTIONS)):
+        elif filename.lower().endswith(tuple(IMAGE_EXTENTIONS)):
             try:
                 images_to_encode.append(Image.open(full_path))
             except Exception as e:
@@ -184,7 +247,7 @@ def index_all_media(media_folder: str, video_frames_to_extract: int = DEFAULT_FR
                 continue
         
         else:
-            continue  # Skip non-media files
+            continue  # This should not happen due to security check, but keep as fallback
         
         if not images_to_encode:
             continue
@@ -324,17 +387,57 @@ def api_search(request: searchRequest):
 @app.get("/media/{filename}")
 async def get_media_file(filename: str):
     """API endpoint to retrieve a media file by filename."""
-    file_path = os.path.join(MEDIA_FOLDER, filename)
-    if not os.path.isfile(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(path=file_path, filename=filename)
+    try:
+        # Security check - validate filename to prevent path traversal
+        if "/" in filename or "\\" in filename or filename.startswith(".."):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        file_path = os.path.join(MEDIA_FOLDER, filename)
+        
+        # Additional security check
+        if not validate_file_path(file_path, MEDIA_FOLDER):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        if not os.path.isfile(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Check file size to prevent serving extremely large files
+        file_size = os.path.getsize(file_path)
+        if file_size > 2 * 1024 * 1024 * 1024:  # 2GB limit
+            raise HTTPException(status_code=413, detail="File too large")
+        
+        return FileResponse(path=file_path, filename=filename)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error serving media file {filename}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.get("/thumbnail/{filename}")
 async def get_thumbnail_file(filename: str):
-  """API endpoint to retrieve a thumbnail for a media file by filename."""
-  thumb_path = os.path.join(THUMBNAIL_FOLDER, f"{filename}.jpg")
-  if not os.path.isfile(thumb_path):
-      raise HTTPException(status_code=404, detail="File not found")
-  return FileResponse(path = thumb_path,media_type="image/jpeg",filename=filename)
+    """API endpoint to retrieve a thumbnail for a media file by filename."""
+    try:
+        # Security check - validate filename to prevent path traversal
+        if "/" in filename or "\\" in filename or filename.startswith(".."):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        
+        # The filename parameter should be the hash of the original media file
+        thumb_path = os.path.join(THUMBNAIL_FOLDER, f"{filename}.jpg")
+        
+        # Security check - ensure thumbnail is within thumbnail directory
+        if not validate_file_path(thumb_path, THUMBNAIL_FOLDER):
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        if not os.path.isfile(thumb_path):
+            raise HTTPException(status_code=404, detail="Thumbnail not found")
+        
+        return FileResponse(path=thumb_path, media_type="image/jpeg", filename=f"{filename}.jpg")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error serving thumbnail {filename}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 

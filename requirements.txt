@@ -1,8 +1,9 @@
-fastapi
-uvicorn[standard]
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
 # For Apple Silicon (M1/M2/M3) you can use a different torch install,
 # but for simplicity and stability on all Macs:
-torch
-opencv-python
-Pillow
-sentence-transformers
+torch==2.4.0
+opencv-python==4.10.0.84
+Pillow==10.4.0
+sentence-transformers==3.0.1
+numpy==1.26.4
