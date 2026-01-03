@@ -20,7 +20,7 @@ indexed_filenames = []
 MODEL_NAME = "clip-ViT-B-32"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-IMAGE_EXTENTIONS = [".jpg", ".jpeg", ".png", ".bmp", ".tiff"]
+IMAGE_EXTENTIONS = [".jpg", ".jpeg", ".png", ".bmp", ".tiff","heic"]
 VIDEO_EXTENTIONS = [".mp4", ".avi", ".mov", ".mkv"]
 DEFAULT_FRAMES_TO_EXTRACT = 10
 
