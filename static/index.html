@@ -16,6 +16,19 @@
         <button id="searchBtn">Search</button>
     </section>
     
+    <section class="controls-section">
+        <div class="control-group">
+            <label for="thresholdSlider">Similarity Threshold: <span id="thresholdValue">0.2</span></label>
+            <input type="range" id="thresholdSlider" min="0.1" max="0.5" step="0.01" value="0.2" />
+            <small>Higher = more strict matching</small>
+        </div>
+        <div class="control-group">
+            <label for="topKSlider">Max Results: <span id="topKValue">50</span></label>
+            <input type="range" id="topKSlider" min="10" max="100" step="5" value="50" />
+            <small>Number of results to show</small>
+        </div>
+    </section>
+    
     <main class="results" id="resultsContainer">
     </main>
     

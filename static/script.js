@@ -19,6 +19,11 @@ if (!searchButton) {
   console.error("search button not found in DOM")
 }
 
+const thresholdSlider = document.getElementById("thresholdSlider")
+const thresholdValue = document.getElementById("thresholdValue")
+const topKSlider = document.getElementById("topKSlider")
+const topKValue = document.getElementById("topKValue")
+
 const resultsContainer = document.querySelector(".results")
 if (!resultsContainer) {
   console.error("results container not found in DOM")
@@ -32,6 +37,18 @@ const THUMBNAIL_PATH = "/thumbnail/"
 function initializeApp() {
   searchButton.addEventListener("click", handleSearchClick)
   searchInput.addEventListener("keydown", handleSearchEnter)
+  
+  // Add event listeners for sliders
+  thresholdSlider.addEventListener("input", updateThresholdValue)
+  topKSlider.addEventListener("input", updateTopKValue)
+}
+
+function updateThresholdValue() {
+  thresholdValue.textContent = thresholdSlider.value
+}
+
+function updateTopKValue() {
+  topKValue.textContent = topKSlider.value
 }
 
 initializeApp()
@@ -89,12 +106,19 @@ async function searchFlow(keyword) {
  *********************************/
 
 async function fetchSearchResults(keyword) {
+  const threshold = parseFloat(thresholdSlider.value)
+  const topK = parseInt(topKSlider.value)
+  
   const response = await fetch("/search", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query: keyword }),
+    body: JSON.stringify({ 
+      query: keyword,
+      score_threshold: threshold,
+      top_k: topK
+    }),
   })
 
   if (!response.ok) {
