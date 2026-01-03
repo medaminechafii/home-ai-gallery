@@ -11,23 +11,60 @@ from sentence_transformers import SentenceTransformer, util
 from pydantic import BaseModel
 import hashlib
 import time
+from typing import Optional
 
 #---CONFIGURATION---
-MEDIA_FOLDER = "./media"
-THUMBNAIL_FOLDER = "./thumbnails"
-#Global Variables for the index
+class Config:
+    def __init__(self):
+        # Media and file paths
+        self.MEDIA_FOLDER = os.getenv("MEDIA_FOLDER", "./media")
+        self.THUMBNAIL_FOLDER = os.getenv("THUMBNAIL_FOLDER", "./thumbnails")
+        
+        # Model configuration
+        self.MODEL_NAME = os.getenv("MODEL_NAME", "clip-ViT-B-32")
+        self.DEVICE = os.getenv("DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
+        
+        # File extensions
+        self.IMAGE_EXTENSIONS = os.getenv("IMAGE_EXTENSIONS", ".jpg,.jpeg,.png,.bmp,.tiff,.heic").split(",")
+        self.VIDEO_EXTENSIONS = os.getenv("VIDEO_EXTENSIONS", ".mp4,.avi,.mov,.mkv").split(",")
+        
+        # Indexing settings
+        self.DEFAULT_FRAMES_TO_EXTRACT = int(os.getenv("DEFAULT_FRAMES_TO_EXTRACT", "10"))
+        self.THUMBNAIL_SIZE = tuple(map(int, os.getenv("THUMBNAIL_SIZE", "400,400").split(",")))
+        
+        # Search defaults
+        self.DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", "50"))
+        self.DEFAULT_THRESHOLD = float(os.getenv("DEFAULT_THRESHOLD", "0.2"))
+        
+        # Server settings
+        self.HOST = os.getenv("HOST", "0.0.0.0")
+        self.PORT = int(os.getenv("PORT", "8000"))
+        
+        # Index files
+        self.INDEX_FILE_EMBEDDINGS = os.getenv("INDEX_FILE_EMBEDDINGS", "indexed_embeddings.pt")
+        self.INDEX_FILE_FILENAMES = os.getenv("INDEX_FILE_FILENAMES", "indexed_filenames.json")
+        self.INDEX_FILE_METADATA = os.getenv("INDEX_FILE_METADATA", "indexed_files_metadata.json")
+
+# Initialize configuration
+config = Config()
+
+# Global variables for the index
 indexed_embeddings = None
 indexed_filenames = []
-MODEL_NAME = "clip-ViT-B-32"
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+model = None
 
-IMAGE_EXTENTIONS = [".jpg", ".jpeg", ".png", ".bmp", ".tiff","heic"]
-VIDEO_EXTENTIONS = [".mp4", ".avi", ".mov", ".mkv"]
-DEFAULT_FRAMES_TO_EXTRACT = 10
-
-INDEX_FILE_EMBEDDINGS = "indexed_embeddings.pt"
-INDEX_FILE_FILENAMES = "indexed_filenames.json"
-INDEX_FILE_METADATA = "indexed_files_metadata.json"  # Track file modification times
+# Use config values (backward compatibility)
+MEDIA_FOLDER = config.MEDIA_FOLDER
+THUMBNAIL_FOLDER = config.THUMBNAIL_FOLDER
+MODEL_NAME = config.MODEL_NAME
+DEVICE = config.DEVICE
+IMAGE_EXTENTIONS = config.IMAGE_EXTENSIONS
+VIDEO_EXTENTIONS = config.VIDEO_EXTENSIONS
+DEFAULT_FRAMES_TO_EXTRACT = config.DEFAULT_FRAMES_TO_EXTRACT
+INDEX_FILE_EMBEDDINGS = config.INDEX_FILE_EMBEDDINGS
+INDEX_FILE_FILENAMES = config.INDEX_FILE_FILENAMES
+INDEX_FILE_METADATA = config.INDEX_FILE_METADATA
+THUMBNAIL_SIZE = config.THUMBNAIL_SIZE
 
 def validate_file_path(file_path: str, allowed_directory: str) -> bool:
     """
@@ -125,10 +162,9 @@ def is_safe_media_file(filename: str, media_folder: str) -> bool:
 
 class searchRequest(BaseModel):
     query: str
-    top_k: int = 50
-    score_threshold: float = 0.2
+    top_k: int = config.DEFAULT_TOP_K
+    score_threshold: float = config.DEFAULT_THRESHOLD
 
-THUMBNAIL_SIZE = (400,400)
 os.makedirs(THUMBNAIL_FOLDER, exist_ok=True)
 
 #---END CONFIGURATION---

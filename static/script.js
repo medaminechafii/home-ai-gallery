@@ -268,7 +268,8 @@ function showLoading() {
   resultsContainer.innerHTML = `
         <div class="loading-spinner">
             <div class="spinner"></div>
-            <p>Searching...</p>
+            <p>Searching your media...</p>
+            <small>AI is analyzing your images and videos</small>
         </div>
     `
   resultsContainer.classList.add("loading")
@@ -290,18 +291,36 @@ function showEmptyState() {
 function showError(message) {
   resultsContainer.innerHTML = `
         <div class="error-state">
-            <p>Error: ${message}</p>
-            <p style="margin-top: 8px; font-size: 14px;">Please try again.</p>
+            <p>❌ Something went wrong</p>
+            <p><strong>${message}</strong></p>
+            <button onclick="retryLastSearch()" class="retry-btn">Try Again</button>
         </div>
     `
   resultsContainer.classList.add("error")
 }
+
+let lastSearchQuery = ""
+let lastSearchParams = {}
+
+function retryLastSearch() {
+  if (lastSearchQuery) {
+    searchFlow(lastSearchQuery)
+  }
+}
+
 /*********************************
  * 9. Limit initial Results
  *********************************/
 
 
 async function searchFlow(keyword) {
+  // Store for retry functionality
+  lastSearchQuery = keyword
+  lastSearchParams = {
+    threshold: thresholdSlider.value,
+    topK: topKSlider.value
+  }
+  
   showLoading()
   try{
     const results = await fetchSearchResults(keyword)
