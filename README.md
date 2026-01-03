@@ -66,11 +66,6 @@ mkdir media
 # Supports: jpg, jpeg, png, gif, webp, mp4, avi, mov, mkv
 ```
 
-**Note:** The app supports symlinks, so you can link to existing media directories:
-```bash
-ln -s /path/to/your/media/* media/
-```
-
 ## Usage
 
 ### 1. Start the Server
