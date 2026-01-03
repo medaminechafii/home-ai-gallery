@@ -3,29 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Image Search</title>
+    <title>AI Gallery - Professional Media Search</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="header">
-        <h1>What are you searching for today?</h1>
+        <h1>AI Gallery</h1>
+        <p class="subtitle">Discover your media with intelligent search</p>
     </header>
     
     <section class="search-section">
-        <input type="text" id="searchInput" placeholder="Search by keyword (AI-powered)..." />
-        <button id="searchBtn">Search</button>
+        <div class="search-container">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search your media collection..." />
+            <button id="searchBtn" class="search-btn">
+                <span>Search</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
+            </button>
+        </div>
     </section>
     
     <section class="controls-section">
         <div class="control-group">
-            <label for="thresholdSlider">Similarity Threshold: <span id="thresholdValue">0.2</span></label>
-            <input type="range" id="thresholdSlider" min="0.1" max="0.5" step="0.01" value="0.2" />
-            <small>Higher = more strict matching</small>
+            <div class="control-label">
+                <span>Similarity Threshold</span>
+                <span class="control-value" id="thresholdValue">0.2</span>
+            </div>
+            <input type="range" id="thresholdSlider" class="slider" min="0.1" max="0.5" step="0.01" value="0.2" />
+            <div class="control-help">Higher values show more relevant results</div>
         </div>
         <div class="control-group">
-            <label for="topKSlider">Max Results: <span id="topKValue">50</span></label>
-            <input type="range" id="topKSlider" min="10" max="100" step="5" value="50" />
-            <small>Number of results to show</small>
+            <div class="control-label">
+                <span>Max Results</span>
+                <span class="control-value" id="topKValue">50</span>
+            </div>
+            <input type="range" id="topKSlider" class="slider" min="10" max="100" step="5" value="50" />
+            <div class="control-help">Number of results to display</div>
         </div>
     </section>
     

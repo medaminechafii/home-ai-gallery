@@ -141,29 +141,36 @@ function clearResults() {
 }
 
 function renderResults(mediaList) {
+  // Create media grid container
+  const gridContainer = document.createElement("div")
+  gridContainer.className = "media-grid"
+  
   mediaList.forEach((media) => {
+    const card = document.createElement("div")
+    card.className = "media-card"
+    
     if (media.source === "Image") {
-      renderImageCard(media)
+      renderImageCard(media, card)
     } else if (media.source === "Video") {
-      renderVideoCard(media)
+      renderVideoCard(media, card)
     }
+    
+    gridContainer.appendChild(card)
   })
+  
+  resultsContainer.appendChild(gridContainer)
 }
 
-function renderImageCard(media) {
-  const card = document.createElement("div")
-  card.className = "media-card"
-
+function renderImageCard(media, card) {
   const img = document.createElement("img")
-
   img.loading = "lazy"
 
-  if (media.thumbnail){
+  if (media.thumbnail) {
     img.src = `${THUMBNAIL_PATH}${media.thumbnail}`
+  } else {
+    img.src = `${MEDIA_PATH}${encodeURIComponent(media.filename)}`
   }
-  else{
-    img.src = `${MEDIA_PATH}${encodeUIOComponent(media.filename)}`
-  }
+  
   img.style.cursor = "pointer"
   img.addEventListener("click", () => {
     window.open(`${MEDIA_PATH}${encodeURIComponent(media.filename)}`, "_blank")
@@ -178,6 +185,7 @@ function renderImageCard(media) {
   actionsDiv.className = "media-actions"
 
   const downloadBtn = document.createElement("button")
+  downloadBtn.className = "download-btn"
   downloadBtn.textContent = "Download"
   downloadBtn.addEventListener("click", () => handleDownload(media))
 
@@ -185,15 +193,11 @@ function renderImageCard(media) {
   card.appendChild(img)
   card.appendChild(scoreBadge)
   card.appendChild(actionsDiv)
-  resultsContainer.appendChild(card)
 }
 
-function renderVideoCard(media) {
+function renderVideoCard(media, card) {
   console.log("Rendering video:", media)
   console.log("Thumbnail hash:", media.thumbnail)
-
-  const card = document.createElement("div")
-  card.className = "media-card"
 
   const videoContainer = document.createElement("div")
   videoContainer.className = "video-container"
@@ -223,13 +227,13 @@ function renderVideoCard(media) {
   actionsDiv.className = "media-actions"
 
   const downloadBtn = document.createElement("button")
+  downloadBtn.className = "download-btn"
   downloadBtn.textContent = "Download"
   downloadBtn.addEventListener("click", () => handleDownload(media))
 
   actionsDiv.appendChild(downloadBtn)
   card.appendChild(scoreBadge)
   card.appendChild(actionsDiv)
-  resultsContainer.appendChild(card)
 }
 
 /*********************************
@@ -253,12 +257,12 @@ function handleDownload(media) {
 
 function showLoading() {
   resultsContainer.innerHTML = `
-        <div class="loading-spinner">
-            <div class="spinner"></div>
-            <p>Searching your media...</p>
-            <small>AI is analyzing your images and videos</small>
-        </div>
-    `
+    <div class="loading-spinner">
+      <div class="spinner"></div>
+      <p>Searching your media...</p>
+      <small>AI is analyzing your images and videos</small>
+    </div>
+  `
   resultsContainer.classList.add("loading")
 }
 
@@ -268,21 +272,22 @@ function hideLoading() {
 
 function showEmptyState() {
   resultsContainer.innerHTML = `
-        <div class="empty-state">
-            <p>No results found. Try a different search term.</p>
-        </div>
-    `
+    <div class="empty-state">
+      <p>No results found for your search.</p>
+      <small>Try adjusting the similarity threshold or using different keywords.</small>
+    </div>
+  `
   resultsContainer.classList.add("empty")
 }
 
-function showError(message) {
+function showError(errorMessage) {
   resultsContainer.innerHTML = `
-        <div class="error-state">
-            <p>❌ Something went wrong</p>
-            <p><strong>${message}</strong></p>
-            <button onclick="retryLastSearch()" class="retry-btn">Try Again</button>
-        </div>
-    `
+    <div class="error-state">
+      <p>Something went wrong</p>
+      <small>${errorMessage}</small>
+      <button class="retry-btn" onclick="retryLastSearch()">Retry Search</button>
+    </div>
+  `
   resultsContainer.classList.add("error")
 }
 
@@ -330,13 +335,28 @@ async function searchFlow(keyword) {
 function renderMoreResults() {
   hideLoadMoreButton()
   const nextBatch = currentResults.slice(displayedCount, displayedCount + RESULT_PER_PAGE)
+  
+  // Create media grid container if it doesn't exist
+  let gridContainer = resultsContainer.querySelector('.media-grid')
+  if (!gridContainer) {
+    gridContainer = document.createElement("div")
+    gridContainer.className = "media-grid"
+    resultsContainer.appendChild(gridContainer)
+  }
+  
   nextBatch.forEach((media) => {
+    const card = document.createElement("div")
+    card.className = "media-card"
+    
     if (media.source === "Image") {
-      renderImageCard(media)
+      renderImageCard(media, card)
     } else if (media.source === "Video") {
-      renderVideoCard(media)
+      renderVideoCard(media, card)
     }
+    
+    gridContainer.appendChild(card)
   })
+  
   displayedCount += nextBatch.length 
   if(displayedCount < currentResults.length){
     showLoadMoreButton()
