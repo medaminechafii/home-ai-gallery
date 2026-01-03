@@ -8,6 +8,7 @@ env
 thumbnails
 indexed_filenames.json
 indexed_embeddings.pt
+indexed_files_metadata.json
 #general python ignores
 *.pyc
 *.pyo
