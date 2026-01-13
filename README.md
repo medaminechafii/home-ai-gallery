@@ -24,7 +24,7 @@ In my case, my home server is an archlinux machine, but I do think it works with
 
 ## Installation
 
-### 1. Install System Dependencies
+### 1. (not mendatory) Install System Dependencies
 1.install tailscale on all you machines and login using the same account
 **Arch Linux:**
 ```bash
