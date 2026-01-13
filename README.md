@@ -64,7 +64,7 @@ Create a `media` directory and add your images and videos:
 ```bash
 mkdir media
 # Add your images and videos to this directory
-# Supports: jpg, jpeg, png, gif, webp, mp4, avi, mov, mkv
+# Supports: jpg, jpeg, png, heic, gif, webp, mp4, avi, mov, mkv
 ```
 
 ## Usage
