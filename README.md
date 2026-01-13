@@ -175,7 +175,7 @@ MIT License - feel free to use this project for personal or commercial purposes.
 ## Acknowledgments
 
 - [OpenAI CLIP](https://github.com/openai/CLIP) - For the amazing vision-language model
-- [Flask](https://flask.palletsprojects.com/) - For the web framework
+- [FastAPI](https://fastapi.tiangolo.com/) - For the web framework
 - [FFmpeg](https://ffmpeg.org/) - For video processing capabilities
 
 ## Contributing
